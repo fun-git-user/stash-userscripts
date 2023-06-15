@@ -210,6 +210,7 @@
                 this.remoteScenes = {};
                 this.scenes = {};
                 this.studios = {};
+                this.galleries = {};
                 this.performers = {};
                 this.userscripts = [];
             }
