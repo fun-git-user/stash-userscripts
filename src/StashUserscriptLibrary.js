@@ -190,6 +190,7 @@
                     this.processScenes(evt.detail);
                     this.processStudios(evt.detail);
                     this.processPerformers(evt.detail);
+                    this.processGalleries(evt.detail);
                     this.processApiKey(evt.detail);
                     this.dispatchEvent(new CustomEvent('stash:response', { 'detail': evt.detail }));
                 });
@@ -836,6 +837,13 @@
                 if (data.data.findScenes?.scenes) {
                     for (const scene of data.data.findScenes.scenes) {
                         this.scenes[scene.id] = scene;
+                    }
+                }
+            }
+            processGalleries(data) {
+                if (data.data.findGalleries?.galleries) {
+                    for (const gallery of data.data.findGalleries.galleries) {
+                        this.galleries[gallery.id] = gallery;
                     }
                 }
             }
