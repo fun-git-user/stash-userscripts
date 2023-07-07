@@ -191,6 +191,7 @@
                     this.processStudios(evt.detail);
                     this.processPerformers(evt.detail);
                     this.processGalleries(evt.detail);
+                    this.processMarkers(evt.detail);
                     this.processApiKey(evt.detail);
                     this.dispatchEvent(new CustomEvent('stash:response', { 'detail': evt.detail }));
                 });
@@ -212,6 +213,7 @@
                 this.studios = {};
                 this.galleries = {};
                 this.performers = {};
+                this.scene_markers = {};
                 this.userscripts = [];
             }
             async getVersion() {
@@ -859,6 +861,13 @@
                 if (data.data.findPerformers?.performers) {
                     for (const performer of data.data.findPerformers.performers) {
                         this.performers[performer.id] = performer;
+                    }
+                }
+            }
+            processMarkers(data) {
+                if (data.data.findSceneMarkers?.scene_markers) {
+                    for (const scene_marker of data.data.findSceneMarkers.scene_markers) {
+                        this.scene_markers[scene_marker.id] = scene_marker;
                     }
                 }
             }
