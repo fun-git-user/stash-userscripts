@@ -1,5 +1,7 @@
 # Stash Userscripts
 
+## ** NOTE ** All these userscripts have been migrated to plugins https://github.com/7dJx1qP/stash-plugins
+
 ## [INSTALL USERSCRIPT - ALL SCRIPTS IN ONE BUNDLE](dist/public/Stash%20Userscripts%20Bundle.user.js?raw=1)
 
 Installation requires a browser extension such as [Violentmonkey](https://violentmonkey.github.io/) / [Tampermonkey](https://www.tampermonkey.net/) / [Greasemonkey](https://www.greasespot.net/).
@@ -21,6 +23,7 @@ Pick and choose which userscript to install in the table below or install just `
 | Stash Batch Save  | In Scene Tagger, adds button to batch save all scenes. Opens a confirmation popup with clicked  |:x:|  [INSTALL USERSCRIPT](dist/public/Stash%20Batch%20Save.user.js?raw=1)  |
 | Stash Batch Search  | In Scene Tagger, adds button to batch search all scenes  |:x:|  [INSTALL USERSCRIPT](dist/public/Stash%20Batch%20Search.user.js?raw=1)  |
 | Stash Markdown  | Adds markdown parsing to tag description fields  |:x:|  [INSTALL USERSCRIPT](dist/public/Stash%20Markdown.user.js?raw=1)  |
+| Stash Markers Autoscroll  | Automatically scrolls markers page  |:x:|  [INSTALL USERSCRIPT](dist/public/Stash%20Markers%20Autoscroll.user.js?raw=1)  |
 | Stash New Performer Filter Button  | Adds button to performers page to switch to a filter by new performers tagger view  |:x:|  [INSTALL USERSCRIPT](dist/public/Stash%20New%20Performer%20Filter%20Button.user.js?raw=1)  |
 | Stash Open Media Player  | Open filepath link on scene page 'File Info' tab in an external media player when clicked  |:heavy_check_mark:|  [INSTALL USERSCRIPT](dist/public/Stash%20Open%20Media%20Player.user.js?raw=1)  |
 | Stash Performer Audit Task Button  |  Adds a button to the performers page to check for duplicate performer urls. Task output shown in stash logs  |:heavy_check_mark:|  [INSTALL USERSCRIPT](dist/public/Stash%20Performer%20Audit%20Task%20Button.user.js?raw=1)  |
@@ -31,12 +34,10 @@ Pick and choose which userscript to install in the table below or install just `
 | Stash Scene Tagger Additions  |  Adds scene duration, filepath, and url to tagger view in the collapsible scene details sections. Adds shift-click to collapsible scene details buttons to open/close all. |:x:|  [INSTALL USERSCRIPT](dist/public/Stash%20Scene%20Tagger%20Additions.user.js?raw=1)  |
 | Stash Scene Tagger Colorizer  | In Scene Tagger, colorize scrape results. Matching fields are green, missing fields are yellow, and mismatching fields are red  |:x:|  [INSTALL USERSCRIPT](dist/public/Stash%20Scene%20Tagger%20Colorizer.user.js?raw=1)  |
 | Stash Scene Tagger Draft Submit  | Adds button to Scene Tagger to submit draft to stashdb |:x:|  [INSTALL USERSCRIPT](dist/public/Stash%20Scene%20Tagger%20Draft%20Submit.user.js?raw=1)  |
-| Stash Scene Tagger Linkify  | Turn all scene tagger result text referencing stash or stashbox studio and performer names into clickable links |:x:|  [INSTALL USERSCRIPT](dist/public/Stash%20Scene%20Tagger%20Linkify.user.js?raw=1)  |
 | Stash Set Stashbox Favorite Performers  | Sync Stashbox favorite performers whenever a stash performer is favorited or unfavorited. Also adds button to performers page to sync all |:heavy_check_mark:|  [INSTALL USERSCRIPT](dist/public/Stash%20Set%20Stashbox%20Favorite%20Performers.user.js?raw=1)  |
 | Stash StashID Icon  | Adds checkmark icon to performer and studio cards that have a stashid |:x:|  [INSTALL USERSCRIPT](dist/public/Stash%20StashID%20Icon.user.js?raw=1)  |
 | Stash StashID Input  | Adds input textboxes to performer detail and studio detail pages for stashid entry. Also displays studio stashids on studio page without having to click edit to view |:x:|  [INSTALL USERSCRIPT](dist/public/Stash%20StashID%20Input.user.js?raw=1)  |
 | Stash Stats  | Adds new stats to the stats page: marker count, favorite performer count, studios with stashid %, performers with stashid %, scenes with stashid %  |:x:|  [INSTALL USERSCRIPT](dist/public/Stash%20Stats.user.js?raw=1)  |
-| Stash Studio Image And Parent On Create | In Scene Tagger, sets studio image and parent studio from StashDB when a studio is created  |:heavy_check_mark:|  [INSTALL USERSCRIPT](dist/public/Stash%20Studio%20Image%20And%20Parent%20On%20Create.user.js?raw=1)  |
 | Stash Tag Image Cropper  |  Adds ability to crop tag image from tag page  |:x:|  [INSTALL USERSCRIPT](dist/public/Stash%20Tag%20Image%20Cropper.user.js?raw=1)  |
 
 # Screenshots
@@ -64,6 +65,12 @@ Pick and choose which userscript to install in the table below or install just `
 ## Stash Markdown
 
 ![Tag description](images/Stash%20Markdown/tag-description.png?raw=true "Tag description")
+
+## Stash Markers Autoscroll
+
+![Scroll settings](images/Stash%20Markers%20Autoscroll/scroll-settings.png?raw=true "Scroll settings")
+
+Set scroll size and marker playback speed.
 
 ## Stash New Performer Filter Button
 
@@ -109,15 +116,11 @@ Pick and choose which userscript to install in the table below or install just `
 
 ![Scenes tagger](images/Stash%20Scene%20Tagger%20Colorizer/scenes-tagger.png?raw=true "Scenes tagger")
 
+![Tag colors](images/Stash%20Scene%20Tagger%20Colorizer/tag-colors.png?raw=true "Tag colors")
+
 ## Stash Scene Tagger Draft Submit
 
 ![Scenes tagger](images/Stash%20Scene%20Tagger%20Draft%20Submit/scenes-tagger.png?raw=true "Scenes tagger")
-
-## Stash Scene Tagger Linkify
-
-![Config](images/Stash%20Scene%20Tagger%20Linkify/config.png?raw=true "Config")
-
-![Scenes tagger](images/Stash%20Scene%20Tagger%20Linkify/scenes-tagger.png?raw=true "Scenes tagger")
 
 ## Stash Set Stashbox Favorite Performers
 
@@ -144,10 +147,6 @@ Pick and choose which userscript to install in the table below or install just `
 ## Stash Stats
 
 ![Stats page](images/Stash%20Stats/stats-page.png?raw=true "Stats page")
-
-## Stash Studio Image And Parent On Create
-
-![Scenes tagger](images/Stash%20Studio%20Image%20And%20Parent%20On%20Create/scenes-tagger.png?raw=true "Scenes tagger")
 
 ## Stash Tag Image Cropper
 

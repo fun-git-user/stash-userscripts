@@ -27,19 +27,21 @@
         statHeading.innerText = heading;
         statEl.appendChild(statHeading);
     }
-
     async function createSceneStashIDPct(row) {
         const reqData = {
             "variables": {
                 "scene_filter": {
-                    "stash_id": {
-                        "value": "",
+                    "stash_id_endpoint": {
+                        "endpoint": "",
+                        "stash_id": "",
                         "modifier": "NOT_NULL"
                     }
                 }
             },
             "query": "query FindScenes($filter: FindFilterType, $scene_filter: SceneFilterType, $scene_ids: [Int!]) {\n  findScenes(filter: $filter, scene_filter: $scene_filter, scene_ids: $scene_ids) {\n    count\n  }\n}"
         };
+        const resp = (await stash.callGQL(reqData));
+        console.log('resp', resp);
         const stashIdCount = (await stash.callGQL(reqData)).data.findScenes.count;
 
         const reqData2 = {
@@ -57,8 +59,9 @@
         const reqData = {
             "variables": {
                 "performer_filter": {
-                    "stash_id": {
-                        "value": "",
+                    "stash_id_endpoint": {
+                        "endpoint": "",
+                        "stash_id": "",
                         "modifier": "NOT_NULL"
                     }
                 }
@@ -82,8 +85,9 @@
         const reqData = {
             "variables": {
                 "studio_filter": {
-                    "stash_id": {
-                        "value": "",
+                    "stash_id_endpoint": {
+                        "endpoint": "",
+                        "stash_id": "",
                         "modifier": "NOT_NULL"
                     }
                 }

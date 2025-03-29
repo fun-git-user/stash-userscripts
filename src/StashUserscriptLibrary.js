@@ -1,6 +1,6 @@
 // Stash Userscript Library
 // Exports utility functions and a Stash class that emits events whenever a GQL response is received and whenenever a page navigation change is detected
-// version 0.33.0
+// version 0.36.0
 
 (function () {
     'use strict';
@@ -13,10 +13,11 @@
         unsafeWindow.fetch = async (...args) => {
             let [resource, config ] = args;
             // request interceptor here
+            stashListener.dispatchEvent(new CustomEvent('request', { 'detail': config }));
             const response = await originalFetch(resource, config);
             // response interceptor here
             const contentType = response.headers.get("content-type");
-            if (contentType && contentType.indexOf("application/json") !== -1 && resource.endsWith('/graphql')) {
+            if (contentType && contentType.indexOf("application/json") !== -1 && typeof resource === "string" && resource.endsWith('/graphql')) {
                 try {
                     const data = await response.clone().json();
                     stashListener.dispatchEvent(new CustomEvent('response', { 'detail': data }));
@@ -194,6 +195,9 @@
                     this.processMarkers(evt.detail);
                     this.processApiKey(evt.detail);
                     this.dispatchEvent(new CustomEvent('stash:response', { 'detail': evt.detail }));
+                });
+                stashListener.addEventListener('request', (evt) => {
+                    this.dispatchEvent(new CustomEvent('stash:request', { 'detail': evt.detail }));
                 });
                 stashListener.addEventListener('pluginVersion', (evt) => {
                     if (this.pluginVersion !== evt.detail) {
@@ -774,6 +778,9 @@
                                 else if (node.tagName === 'DIV' && node?.classList?.contains('d-flex') && node?.classList?.contains('flex-column')) { // scene stashid, url, details
                                     this.dispatchEvent(new CustomEvent('tagger:mutation:add:detailscontainer', { 'detail': { node, mutation } }));
                                 }
+                                else if (node.tagName === 'DIV' && node?.classList?.contains('react-select__multi-value')) {
+                                    this.dispatchEvent(new CustomEvent('tagger:mutation:add:remotetag', { 'detail': { node, mutation } }));
+                                }
                                 else {
                                     this.dispatchEvent(new CustomEvent('tagger:mutation:add:other', { 'detail': { node, mutation } }));
                                 }
@@ -885,6 +892,7 @@
                 const name = nameNode.innerText;
                 const queryInput = searchItem.querySelector('input.text-input');
                 const performerNodes = searchItem.querySelectorAll('.performer-tag-container');
+                const tagNodes = searchItem.querySelectorAll('.original-scene-details div.col.col-lg-6 > div > span.tag-item.badge.badge-secondary');
 
                 return {
                     urlNode,
@@ -894,7 +902,8 @@
                     nameNode,
                     name,
                     queryInput,
-                    performerNodes
+                    performerNodes,
+                    tagNodes
                 }
             }
             parseSearchResultItem(searchResultItem) {
@@ -904,14 +913,22 @@
                 const remoteData = this.remoteScenes[remoteId];
 
                 const sceneDetailNodes = searchResultItem.querySelectorAll('.scene-details .optional-field .optional-field-content');
-                let urlNode = null;
+                let urlNodes = [];
                 let detailsNode = null;
                 for (const sceneDetailNode of sceneDetailNodes) {
-                    if (remoteData?.url === sceneDetailNode.innerText) {
-                        urlNode = sceneDetailNode;
-                    }
-                    else if (remoteData?.details === sceneDetailNode.textContent) {
-                        detailsNode = sceneDetailNode;
+                    for (const sceneDetailNodeChild of sceneDetailNode.childNodes) {
+                        let bIsUrlNode = false;
+                        if (remoteData?.urls) {
+                            for (const remoteDataUrl of remoteData?.urls) {
+                                if (remoteDataUrl === sceneDetailNodeChild.innerText) {
+                                    urlNodes.push(sceneDetailNodeChild);
+                                    bIsUrlNode = true;
+                                }
+                            }
+                        }
+                        if (!bIsUrlNode && remoteData?.details === sceneDetailNodeChild.textContent) {
+                            detailsNode = sceneDetailNodeChild;
+                        }
                     }
                 }
 
@@ -919,7 +936,20 @@
 
                 const metadataNode = searchResultItem.querySelector('.scene-metadata');
                 const titleNode = metadataNode.querySelector('h4 .optional-field .optional-field-content');
-                const dateNode = metadataNode.querySelector('h5 .optional-field .optional-field-content');
+                let dateNode;
+                let studioCodeNode;
+                let directorNode;
+                for (const node of searchResultItem.querySelectorAll('h5 .optional-field .optional-field-content')) {
+                    if (node.innerText === remoteData.date) {
+                        dateNode = node;
+                    }
+                    else if (node.innerText === remoteData.code) {
+                        studioCodeNode = node;
+                    }
+                    else if (node.innerText === 'Director: ' + remoteData.director) {
+                        directorNode = node;
+                    }
+                }
 
                 const entityNodes = searchResultItem.querySelectorAll('.entity-name');
                 let studioNode = null;
@@ -940,13 +970,14 @@
                     const entityNode = matchNode.parentElement.querySelector('.entity-name');
 
                     const matchName = matchNode.querySelector('.optional-field-content b').innerText;
+                    const matchStoredId = matchNode.querySelector('a').href.split('/').pop();
                     const remoteName = entityNode.querySelector('b').innerText;
 
                     let data;
                     if (entityNode.innerText.startsWith('Performer:')) {
                         matchType = 'performer';
                         if (remoteData) {
-                            data = remoteData.performers.find(performer => performer.name === remoteName);
+                            data = remoteData.performers.find(performer => performer.stored_id === matchStoredId);
                         }
                     }
                     else if (entityNode.innerText.startsWith('Studio:')) {
@@ -966,19 +997,26 @@
                     });
                 }
 
+                const tagNodes = searchResultItem.querySelectorAll('div.col-lg-6 div.mt-2 div div.form-group.row div.col-xl-12.col-sm-9 .react-select__multi-value');
+                const unmatchedTagNodes = searchResultItem.querySelectorAll('div.col-lg-6 div.mt-2 span.tag-item.badge.badge-secondary');
+
                 return {
                     remoteUrlNode,
                     remoteId,
                     remoteUrl,
                     remoteData,
-                    urlNode,
+                    urlNodes,
                     detailsNode,
                     imageNode,
                     titleNode,
                     dateNode,
                     studioNode,
                     performerNodes,
-                    matches
+                    matches,
+                    tagNodes,
+                    unmatchedTagNodes,
+                    studioCodeNode,
+                    directorNode
                 }
             }
         }
