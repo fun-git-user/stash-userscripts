@@ -1,6 +1,6 @@
 // Stash Userscript Library
 // Exports utility functions and a Stash class that emits events whenever a GQL response is received and whenenever a page navigation change is detected
-// version 0.36.0
+// version 0.43.0 - from stash plugin location - https://github.com/7dJx1qP/stash-plugins/tree/main/plugins/stashUserscriptLibrary7dJx1qP
 
 (function () {
     'use strict';
@@ -10,7 +10,7 @@
         const { fetch: originalFetch } = window;
         const stashListener = new EventTarget();
 
-        unsafeWindow.fetch = async (...args) => {
+        window.fetch = async (...args) => {
             let [resource, config ] = args;
             // request interceptor here
             stashListener.dispatchEvent(new CustomEvent('request', { 'detail': config }));
@@ -71,6 +71,18 @@
                     callBack(xpath, element);
                 } else {
                     waitForElementByXpath(xpath, callBack);
+                }
+            }, time);
+        }
+
+        function waitForElementsByXpath(xpath, callBack, time) {
+            time = (typeof time !== 'undefined') ? time : 100;
+            window.setTimeout(() => {
+                const element = getElementsByXpath(xpath);
+                if (element) {
+                    callBack(xpath, element);
+                } else {
+                    waitForElementsByXpath(xpath, callBack);
                 }
             }, time);
         }
@@ -173,8 +185,9 @@
                 this.log = new Logger(logging);
                 this._pageUrlCheckInterval = pageUrlCheckInterval;
                 this.fireOnHashChangesToo = true;
+                this.lastLocationEvents = [];
                 this.pageURLCheckTimer = setInterval(() => {
-                    // Loop every 500ms
+                    // Loop every 50ms
                     if (this.lastPathStr !== location.pathname || this.lastQueryStr !== location.search || (this.fireOnHashChangesToo && this.lastHashStr !== location.hash)) {
                         this.lastPathStr = location.pathname;
                         this.lastQueryStr = location.search;
@@ -209,7 +222,7 @@
                 this.getVersion();
                 this.pluginVersion = null;
                 this.getPlugins().then(plugins => this.getPluginVersion(plugins));
-                this.visiblePluginTasks = ['Userscript Functions'];
+                this.hiddenPluginTasks = [];
                 this.settingsCallbacks = [];
                 this.settingsId = 'userscript-settings';
                 this.remoteScenes = {};
@@ -219,6 +232,101 @@
                 this.performers = {};
                 this.scene_markers = {};
                 this.userscripts = [];
+                this.sceneTaggerObserver = new MutationObserver(mutations => {
+                    mutations.forEach(mutation => {
+                        mutation.addedNodes.forEach(node => {
+                            if (node?.classList?.contains('entity-name') && node.innerText.startsWith('Performer:')) {
+                                this.dispatchEvent(new CustomEvent('tagger:mutation:add:remoteperformer', { 'detail': { node, mutation } }));
+                            }
+                            else if (node?.classList?.contains('entity-name') && node.innerText.startsWith('Studio:')) {
+                                this.dispatchEvent(new CustomEvent('tagger:mutation:add:remotestudio', { 'detail': { node, mutation } }));
+                            }
+                            else if (node.tagName === 'SPAN' && node.innerText.startsWith('Matched:')) {
+                                this.dispatchEvent(new CustomEvent('tagger:mutation:add:local', { 'detail': { node, mutation } }));
+                            }
+                            else if (node.tagName === 'UL') {
+                                this.dispatchEvent(new CustomEvent('tagger:mutation:add:container', { 'detail': { node, mutation } }));
+                            }
+                            else if (node?.classList?.contains('col-lg-6')) {
+                                this.dispatchEvent(new CustomEvent('tagger:mutation:add:subcontainer', { 'detail': { node, mutation } }));
+                            }
+                            else if (node.tagName === 'H5') { // scene date
+                                this.dispatchEvent(new CustomEvent('tagger:mutation:add:date', { 'detail': { node, mutation } }));
+                            }
+                            else if (node.tagName === 'DIV' && node?.classList?.contains('d-flex') && node?.classList?.contains('flex-column')) { // scene stashid, url, details
+                                this.dispatchEvent(new CustomEvent('tagger:mutation:add:detailscontainer', { 'detail': { node, mutation } }));
+                            }
+                            else if (node.tagName === 'DIV' && node?.classList?.contains('react-select__multi-value')) {
+                                this.dispatchEvent(new CustomEvent('tagger:mutation:add:remotetag', { 'detail': { node, mutation } }));
+                            }
+                            else {
+                                this.dispatchEvent(new CustomEvent('tagger:mutation:add:other', { 'detail': { node, mutation } }));
+                            }
+                        });
+                    });
+                    this.dispatchEvent(new CustomEvent('tagger:mutations:searchitems', { 'detail': mutations }));
+                });
+                this.taggerContainerHeaderObserver = new MutationObserver(mutations => {
+                    this.dispatchEvent(new CustomEvent('tagger:mutations:header', { 'detail': mutations }));
+                });
+                this.performerPageObserver = new MutationObserver(mutations => {
+                    let isEdit = false;
+                    let isCollapsed = false;
+                    mutations.forEach(mutation => {
+                        if (mutation.attributeName === 'class') {
+                            if (mutation.target.classList.contains('edit')) {
+                                isEdit = true;
+                            }
+                            else if (mutation.target.classList.contains('collapsed')) {
+                                isCollapsed = true;
+                            }
+                            else if (mutation.target.classList.contains('full-width')) {
+                                isCollapsed = false;
+                            }
+                        }
+                    });
+                    if (isEdit) {
+                        this.dispatchLocationEvent(new Event('page:performer:edit'));
+                    }
+                    else {
+                        this.dispatchLocationEvent(new Event('page:performer:details'));
+                    }
+                    if (isCollapsed) {
+                        this.dispatchLocationEvent(new Event('page:performer:details:collapsed'));
+                    }
+                    else {
+                        this.dispatchLocationEvent(new Event('page:performer:details:expanded'));
+                    }
+                });
+                this.studioPageObserver = new MutationObserver(mutations => {
+                    let isEdit = false;
+                    let isCollapsed = false;
+                    mutations.forEach(mutation => {
+                        if (mutation.attributeName === 'class') {
+                            if (mutation.target.classList.contains('edit')) {
+                                isEdit = true;
+                            }
+                            else if (mutation.target.classList.contains('collapsed')) {
+                                isCollapsed = true;
+                            }
+                            else if (mutation.target.classList.contains('full-width')) {
+                                isCollapsed = false;
+                            }
+                        }
+                    });
+                    if (isEdit) {
+                        this.dispatchLocationEvent(new Event('page:studio:edit'));
+                    }
+                    else {
+                        this.dispatchLocationEvent(new Event('page:studio:details'));
+                    }
+                    if (isCollapsed) {
+                        this.dispatchLocationEvent(new Event('page:studio:details:collapsed'));
+                    }
+                    else {
+                        this.dispatchLocationEvent(new Event('page:studio:details:expanded'));
+                    }
+                });
             }
             async getVersion() {
                 const reqData = {
@@ -278,7 +386,7 @@
                 }
 
                 try {
-                    const res = await unsafeWindow.fetch('/graphql', options);
+                    const res = await window.fetch('/graphql', options);
                     this.log.debug(res);
                     return res.json();
                 }
@@ -354,367 +462,328 @@
                 };
                 return this.callGQL(reqData);
             }
+            async getPluginConfigs() {
+                const reqData = {
+                    "operationName": "Configuration",
+                    "variables": {},
+                    "query": `query Configuration {
+                        configuration {
+                          plugins
+                        }
+                      }`
+                };
+                return this.callGQL(reqData);
+            }
+            async getPluginConfig(pluginId) {
+                const data = await this.getPluginConfigs();
+                return data.data.configuration.plugins[pluginId];
+            }
+            async updatePluginConfig(pluginId, config) {
+                const reqData = {
+                    "operationName": "ConfigurePlugin",
+                    "variables": {
+                        "plugin_id": pluginId,
+                        "input": config
+                    },
+                    "query": `mutation ConfigurePlugin($plugin_id: ID!, $input: Map!) {
+                        configurePlugin(plugin_id: $plugin_id, input: $input)
+                      }`
+                };
+                return this.callGQL(reqData);
+            }
+            async getUIConfig() {
+                const reqData = {
+                    "operationName": "Configuration",
+                    "variables": {},
+                    "query": `query Configuration {
+                        configuration {
+                          ui
+                        }
+                      }`
+                };
+                return this.callGQL(reqData);
+            }
             matchUrl(location, fragment) {
                 const regexp = concatRegexp(new RegExp(location.origin), fragment);
                 this.log.debug(regexp, location.href.match(regexp));
                 return location.href.match(regexp) != null;
             }
-            createSettings() {
-                waitForElementId('configuration-tabs-tabpane-system', async (elementId, el) => {
-                    let section;
-                    if (!document.getElementById(this.settingsId)) {
-                        section = document.createElement("div");
-                        section.setAttribute('id', this.settingsId);
-                        section.classList.add('setting-section');
-                        section.innerHTML = `<h1>Userscript Settings</h1>`;
-                        el.appendChild(section);
-
-                        const expectedApiKey = (await this.getApiKey())?.data?.configuration?.general?.apiKey || '';
-                        const expectedUrl = window.location.origin;
-
-                        const serverUrlInput = await this.createSystemSettingTextbox(section, 'userscript-section-server-url', 'userscript-server-url', 'Stash Server URL', '', 'Server URL…', true);
-                        serverUrlInput.addEventListener('change', () => {
-                            const value = serverUrlInput.value || '';
-                            if (value) {
-                                this.updateConfigValueTask('STASH', 'url', value);
-                                alert(`Userscripts plugin server URL set to ${value}`);
-                            }
-                            else {
-                                this.getConfigValueTask('STASH', 'url').then(value => {
-                                    serverUrlInput.value = value;
-                                });
-                            }
-                        });
-                        serverUrlInput.disabled = true;
-                        serverUrlInput.value = expectedUrl;
-                        this.getConfigValueTask('STASH', 'url').then(value => {
-                            if (value !== expectedUrl) {
-                                return this.updateConfigValueTask('STASH', 'url', expectedUrl);
-                            }
-                        });
-
-                        const apiKeyInput = await this.createSystemSettingTextbox(section, 'userscript-section-server-apikey', 'userscript-server-apikey', 'Stash API Key', '', 'API Key…', true);
-                        apiKeyInput.addEventListener('change', () => {
-                            const value = apiKeyInput.value || '';
-                            this.updateConfigValueTask('STASH', 'api_key', value);
-                            if (value) {
-                                alert(`Userscripts plugin server api key set to ${value}`);
-                            }
-                            else {
-                                alert(`Userscripts plugin server api key value cleared`);
-                            }
-                        });
-                        apiKeyInput.disabled = true;
-                        apiKeyInput.value = expectedApiKey;
-                        this.getConfigValueTask('STASH', 'api_key').then(value => {
-                            if (value !== expectedApiKey) {
-                                return this.updateConfigValueTask('STASH', 'api_key', expectedApiKey);
-                            }
-                        });
-                    }
-                    else {
-                        section = document.getElementById(this.settingsId);
-                    }
-
-                    for (const callback of this.settingsCallbacks) {
-                        callback(this.settingsId, section);
-                    }
-
-                    if (this.pluginVersion) {
-                        this.dispatchEvent(new CustomEvent('stash:pluginVersion', { 'detail': this.pluginVersion }));
-                    }
-
-                });
-            }
-            addSystemSetting(callback) {
-                const section = document.getElementById(this.settingsId);
-                if (section) {
-                    callback(this.settingsId, section);
-                }
-                this.settingsCallbacks.push(callback);
-            }
-            async createSystemSettingCheckbox(containerEl, settingsId, inputId, settingsHeader, settingsSubheader) {
-                const section = document.createElement("div");
-                section.setAttribute('id', settingsId);
-                section.classList.add('card');
-                section.style.display = 'none';
-                section.innerHTML = `<div class="setting">
-        <div>
-        <h3>${settingsHeader}</h3>
-        <div class="sub-heading">${settingsSubheader}</div>
-        </div>
-        <div>
-        <div class="custom-control custom-switch">
-        <input type="checkbox" id="${inputId}" class="custom-control-input">
-        <label title="" for="${inputId}" class="custom-control-label"></label>
-        </div>
-        </div>
-        </div>`;
-                containerEl.appendChild(section);
-                return document.getElementById(inputId);
-            }
-            async createSystemSettingTextbox(containerEl, settingsId, inputId, settingsHeader, settingsSubheader, placeholder, visible) {
-                const section = document.createElement("div");
-                section.setAttribute('id', settingsId);
-                section.classList.add('card');
-                section.style.display = visible ? 'flex' : 'none';
-                section.innerHTML = `<div class="setting">
-        <div>
-        <h3>${settingsHeader}</h3>
-        <div class="sub-heading">${settingsSubheader}</div>
-        </div>
-        <div>
-        <div class="flex-grow-1 query-text-field-group">
-        <input id="${inputId}" class="bg-secondary text-white border-secondary form-control" placeholder="${placeholder}">
-        </div>
-        </div>
-        </div>`;
-                containerEl.appendChild(section);
-                return document.getElementById(inputId);
-            }
             get serverUrl() {
                 return window.location.origin;
+            }
+            dispatchLocationEvent(evt) {
+                this.dispatchEvent(evt);
+                this.lastLocationEvents.push(evt);
+            }
+            addEventListener(eventName, handler) {
+                super.addEventListener(eventName, handler);
+                // ensures that late loading plugin script handlers do not miss the initial location event dispatch
+                if (eventName.startsWith('page:')) {
+                    for (const evt of this.lastLocationEvents) {
+                        if (evt.type === eventName) {
+                            handler(evt);
+                        }
+                    }
+                }
             }
             gmMain() {
                 const location = window.location;
                 this.log.debug(URL, window.location);
+                this.lastLocationEvents = [];
 
                 // marker wall
                 if (this.matchUrl(location, /\/scenes\/markers/)) {
                     this.log.debug('[Navigation] Wall-Markers Page');
-                    this.dispatchEvent(new Event('page:markers'));
+                    this.dispatchLocationEvent(new Event('page:markers'));
                 }
                 // scene page
                 else if (this.matchUrl(location, /\/scenes\/\d+/)) {
                     this.log.debug('[Navigation] Scene Page');
-                    this.dispatchEvent(new Event('page:scene'));
+                    this.dispatchLocationEvent(new Event('page:scene'));
                 }
                 // scenes wall
                 else if (this.matchUrl(location, /\/scenes\?/)) {
                     this.log.debug('[Navigation] Wall-Scene Page');
                     this.processTagger();
-                    this.dispatchEvent(new Event('page:scenes'));
+                    this.dispatchLocationEvent(new Event('page:scenes'));
                 }
 
                 // images wall
                 if (this.matchUrl(location, /\/images\?/)) {
                     this.log.debug('[Navigation] Wall-Images Page');
-                    this.dispatchEvent(new Event('page:images'));
+                    this.dispatchLocationEvent(new Event('page:images'));
                 }
                 // image page
                 if (this.matchUrl(location, /\/images\/\d+/)) {
                     this.log.debug('[Navigation] Image Page');
-                    this.dispatchEvent(new Event('page:image'));
+                    this.dispatchLocationEvent(new Event('page:image'));
                 }
 
                 // movie scenes page
                 else if (this.matchUrl(location, /\/movies\/\d+\?/)) {
                     this.log.debug('[Navigation] Movie Page - Scenes');
                     this.processTagger();
-                    this.dispatchEvent(new Event('page:movie:scenes'));
+                    this.dispatchLocationEvent(new Event('page:movie:scenes'));
                 }
                 // movie page
                 else if (this.matchUrl(location, /\/movies\/\d+/)) {
                     this.log.debug('[Navigation] Movie Page');
-                    this.dispatchEvent(new Event('page:movie'));
+                    this.dispatchLocationEvent(new Event('page:movie'));
                 }
                 // movies wall
                 else if (this.matchUrl(location, /\/movies\?/)) {
                     this.log.debug('[Navigation] Wall-Movies Page');
-                    this.dispatchEvent(new Event('page:movies'));
+                    this.dispatchLocationEvent(new Event('page:movies'));
                 }
 
                 // galleries wall
                 if (this.matchUrl(location, /\/galleries\?/)) {
                     this.log.debug('[Navigation] Wall-Galleries Page');
-                    this.dispatchEvent(new Event('page:galleries'));
+                    this.dispatchLocationEvent(new Event('page:galleries'));
                 }
                 // gallery page
                 if (this.matchUrl(location, /\/galleries\/\d+/)) {
                     this.log.debug('[Navigation] Gallery Page');
-                    this.dispatchEvent(new Event('page:gallery'));
+                    this.dispatchLocationEvent(new Event('page:gallery'));
                 }
 
                 // performer scenes page
                 if (this.matchUrl(location, /\/performers\/\d+\/scenes/)) {
                     this.log.debug('[Navigation] Performer Page - Scenes');
                     this.processTagger();
-                    this.dispatchEvent(new Event('page:performer:scenes'));
+                    this.dispatchLocationEvent(new Event('page:performer:scenes'));
                 }
                 // performer galleries page
                 else if (this.matchUrl(location, /\/performers\/\d+\/galleries/)) {
                     this.log.debug('[Navigation] Performer Page - Galleries');
-                    this.dispatchEvent(new Event('page:performer:galleries'));
+                    this.dispatchLocationEvent(new Event('page:performer:galleries'));
                 }
                 // performer movies page
                 else if (this.matchUrl(location, /\/performers\/\d+\/movies/)) {
                     this.log.debug('[Navigation] Performer Page - Movies');
-                    this.dispatchEvent(new Event('page:performer:movies'));
+                    this.dispatchLocationEvent(new Event('page:performer:movies'));
+                }
+                // performer appears with page
+                else if (this.matchUrl(location, /\/performers\/\d+\/appearswith/)) {
+                    this.log.debug('[Navigation] Performer Page - Appears With');
+                    this.dispatchLocationEvent(new Event('page:performer:appearswith'));
                 }
                 // performer page
                 else if (this.matchUrl(location, /\/performers\/\d+/)) {
                     this.log.debug('[Navigation] Performers Page');
-                    this.dispatchEvent(new Event('page:performer'));
-                    this.dispatchEvent(new Event('page:performer:details'));
+                    if (this.compareVersion('0.24.3') <= 0) this.processTagger(); // v0.24.3 compatibility
+                    this.dispatchLocationEvent(new Event('page:performer'));
+                }
+                // performer any page
+                if (this.matchUrl(location, /\/performers\/\d+/)) {
+                    this.log.debug('[Navigation] Performer Page - Any');
+                    this.dispatchLocationEvent(new Event('page:performer:any'));
 
-                    waitForElementClass('performer-tabs', (className, targetNode) => {
+                    waitForElementClass('detail-header', (className, targetNode) => {
                         const observerOptions = {
-                            childList: true
+                            attributes : true,
+                            attributeFilter : ['class']
                         }
-                        const observer = new MutationObserver(mutations => {
-                            let isPerformerEdit = false;
-                            mutations.forEach(mutation => {
-                                mutation.addedNodes.forEach(node => {
-                                    if (node.id === 'performer-edit') {
-                                        isPerformerEdit = true;
-                                    }
-                                });
-                            });
-                            if (isPerformerEdit) {
-                                this.dispatchEvent(new Event('page:performer:edit'));
-                            }
-                            else {
-                                this.dispatchEvent(new Event('page:performer:details'));
-                            }
-                        });
-                        observer.observe(targetNode[0], observerOptions);
+                        this.performerPageObserver.observe(targetNode[0], observerOptions);
                     });
                 }
                 // performers wall
                 else if (this.matchUrl(location, /\/performers\?/)) {
                     this.log.debug('[Navigation] Wall-Performers Page');
-                    this.dispatchEvent(new Event('page:performers'));
+                    this.dispatchLocationEvent(new Event('page:performers'));
                 }
 
                 // studio galleries page
                 if (this.matchUrl(location, /\/studios\/\d+\/galleries/)) {
                     this.log.debug('[Navigation] Studio Page - Galleries');
-                    this.dispatchEvent(new Event('page:studio:galleries'));
+                    this.dispatchLocationEvent(new Event('page:studio:galleries'));
                 }
                 // studio images page
                 else if (this.matchUrl(location, /\/studios\/\d+\/images/)) {
                     this.log.debug('[Navigation] Studio Page - Images');
-                    this.dispatchEvent(new Event('page:studio:images'));
+                    this.dispatchLocationEvent(new Event('page:studio:images'));
                 }
                 // studio performers page
                 else if (this.matchUrl(location, /\/studios\/\d+\/performers/)) {
                     this.log.debug('[Navigation] Studio Page - Performers');
-                    this.dispatchEvent(new Event('page:studio:performers'));
+                    this.dispatchLocationEvent(new Event('page:studio:performers'));
                 }
                 // studio movies page
                 else if (this.matchUrl(location, /\/studios\/\d+\/movies/)) {
                     this.log.debug('[Navigation] Studio Page - Movies');
-                    this.dispatchEvent(new Event('page:studio:movies'));
+                    this.dispatchLocationEvent(new Event('page:studio:movies'));
                 }
                 // studio childstudios page
                 else if (this.matchUrl(location, /\/studios\/\d+\/childstudios/)) {
                     this.log.debug('[Navigation] Studio Page - Child Studios');
-                    this.dispatchEvent(new Event('page:studio:childstudios'));
+                    this.dispatchLocationEvent(new Event('page:studio:childstudios'));
                 }
                 // studio scenes page
-                else if (this.matchUrl(location, /\/studios\/\d+\?/)) {
+                else if (this.matchUrl(location, /\/studios\/\d+\/scenes/)) {
                     this.log.debug('[Navigation] Studio Page - Scenes');
                     this.processTagger();
-                    this.dispatchEvent(new Event('page:studio:scenes'));
+                    this.dispatchLocationEvent(new Event('page:studio:scenes'));
                 }
                 // studio page
                 else if (this.matchUrl(location, /\/studios\/\d+/)) {
                     this.log.debug('[Navigation] Studio Page');
-                    this.dispatchEvent(new Event('page:studio'));
+                    if (this.compareVersion('0.24.3') <= 0) this.processTagger(); // v0.24.3 compatibility
+                    this.dispatchLocationEvent(new Event('page:studio'));
+                }
+                // studio any page
+                if (this.matchUrl(location, /\/studios\/\d+/)) {
+                    this.log.debug('[Navigation] Studio Page - Any');
+                    this.dispatchLocationEvent(new Event('page:studio:any'));
+
+                    waitForElementClass('detail-header', (className, targetNode) => {
+                        const observerOptions = {
+                            attributes : true,
+                            attributeFilter : ['class']
+                        }
+                        this.studioPageObserver.observe(targetNode[0], observerOptions);
+                    });
                 }
                 // studios wall
                 else if (this.matchUrl(location, /\/studios\?/)) {
                     this.log.debug('[Navigation] Wall-Studios Page');
-                    this.dispatchEvent(new Event('page:studios'));
+                    this.dispatchLocationEvent(new Event('page:studios'));
                 }
 
                 // tag galleries page
                 if (this.matchUrl(location, /\/tags\/\d+\/galleries/)) {
                     this.log.debug('[Navigation] Tag Page - Galleries');
-                    this.dispatchEvent(new Event('page:tag:galleries'));
+                    this.dispatchLocationEvent(new Event('page:tag:galleries'));
                 }
                 // tag images page
                 else if (this.matchUrl(location, /\/tags\/\d+\/images/)) {
                     this.log.debug('[Navigation] Tag Page - Images');
-                    this.dispatchEvent(new Event('page:tag:images'));
+                    this.dispatchLocationEvent(new Event('page:tag:images'));
                 }
                 // tag markers page
                 else if (this.matchUrl(location, /\/tags\/\d+\/markers/)) {
                     this.log.debug('[Navigation] Tag Page - Markers');
-                    this.dispatchEvent(new Event('page:tag:markers'));
+                    this.dispatchLocationEvent(new Event('page:tag:markers'));
                 }
                 // tag performers page
                 else if (this.matchUrl(location, /\/tags\/\d+\/performers/)) {
                     this.log.debug('[Navigation] Tag Page - Performers');
-                    this.dispatchEvent(new Event('page:tag:performers'));
+                    this.dispatchLocationEvent(new Event('page:tag:performers'));
                 }
                 // tag scenes page
-                else if (this.matchUrl(location, /\/tags\/\d+\?/)) {
+                else if (this.matchUrl(location, /\/tags\/\d+\/scenes/)) {
                     this.log.debug('[Navigation] Tag Page - Scenes');
                     this.processTagger();
-                    this.dispatchEvent(new Event('page:tag:scenes'));
+                    this.dispatchLocationEvent(new Event('page:tag:scenes'));
                 }
                 // tag page
                 else if (this.matchUrl(location, /\/tags\/\d+/)) {
                     this.log.debug('[Navigation] Tag Page');
-                    this.dispatchEvent(new Event('page:tag'));
+                    if (this.compareVersion('0.24.3') <= 0) this.processTagger(); // v0.24.3 compatibility
+                    this.dispatchLocationEvent(new Event('page:tag'));
                 }
                 // tags any page
                 if (this.matchUrl(location, /\/tags\/\d+/)) {
                     this.log.debug('[Navigation] Tag Page - Any');
-                    this.dispatchEvent(new Event('page:tag:any'));
+                    this.dispatchLocationEvent(new Event('page:tag:any'));
                 }
                 // tags wall
                 else if (this.matchUrl(location, /\/tags\?/)) {
                     this.log.debug('[Navigation] Wall-Tags Page');
-                    this.dispatchEvent(new Event('page:tags'));
+                    this.dispatchLocationEvent(new Event('page:tags'));
                 }
 
                 // settings page tasks tab
                 if (this.matchUrl(location, /\/settings\?tab=tasks/)) {
                     this.log.debug('[Navigation] Settings Page Tasks Tab');
-                    this.dispatchEvent(new Event('page:settings:tasks'));
+                    this.dispatchLocationEvent(new Event('page:settings:tasks'));
                     this.hidePluginTasks();
                 }
                 // settings page system tab
                 else if (this.matchUrl(location, /\/settings\?tab=system/)) {
                     this.log.debug('[Navigation] Settings Page System Tab');
-                    this.createSettings();
-                    this.dispatchEvent(new Event('page:settings:system'));
+                    this.dispatchLocationEvent(new Event('page:settings:system'));
                 }
                 // settings page (defaults to tasks tab)
                 else if (this.matchUrl(location, /\/settings/)) {
                     this.log.debug('[Navigation] Settings Page Tasks Tab');
-                    this.dispatchEvent(new Event('page:settings:tasks'));
+                    this.dispatchLocationEvent(new Event('page:settings:tasks'));
                     this.hidePluginTasks();
                 }
 
                 // stats page
                 if (this.matchUrl(location, /\/stats/)) {
                     this.log.debug('[Navigation] Stats Page');
-                    this.dispatchEvent(new Event('page:stats'));
+                    this.dispatchLocationEvent(new Event('page:stats'));
                 }
             }
             hidePluginTasks () {
-                // hide userscript functions plugin tasks
-                waitForElementByXpath("//div[@id='tasks-panel']//h3[text()='Userscript Functions']/ancestor::div[contains(@class, 'setting-group')]", (elementId, el) => {
-                    const tasks = el.querySelectorAll('.setting');
-                    for (const task of tasks) {
-                        const taskName = task.querySelector('h3').innerText;
-                        task.classList.add(this.visiblePluginTasks.indexOf(taskName) === -1 ? 'd-none' : 'd-flex');
-                        this.dispatchEvent(new CustomEvent('stash:plugin:task', { 'detail': { taskName, task } }));
+                waitForElementsByXpath("//div[@id='tasks-panel']//h1[text()='Plugin Tasks']/following-sibling::div[@class='card']/div[contains(@class, 'setting-group')]", (elementId, nodeIter) => {
+                    const nodes = [];
+                    let node = null;
+                    while (node = nodeIter.iterateNext()) {
+                        nodes.push(node);
+                    }
+                    for (const el of nodes) {
+                        const pluginName = el.querySelector('.setting').innerText;
+                        const hidePlugin = this.hiddenPluginTasks.find(hiddenPluginTask => hiddenPluginTask[0] === pluginName && !hiddenPluginTask[1]);
+                        if (hidePlugin) el.classList.add('d-none');
+                        const tasks = el.querySelectorAll('.collapsible-section .setting');
+                        for (const task of tasks) {
+                            const taskName = task.querySelector('h3').innerText;
+                            const hideTask = this.hiddenPluginTasks.find(hiddenPluginTask => hiddenPluginTask[0] === pluginName && hiddenPluginTask[1] === taskName);
+                            if (hideTask) {
+                                task.classList.add('d-none');
+                                if (!task.nextSibling) {
+                                    task.previousSibling.style.borderBottom = 0;
+                                }
+                            }
+                            this.dispatchEvent(new CustomEvent('stash:plugin:task', { 'detail': { taskName, task } }));
+                        }
                     }
                 });
             }
-            async updateConfigValueTask(sectionKey, propName, value) {
-                return this.runPluginTask("userscript_functions", "Update Config Value", [{"key":"section_key", "value":{"str": sectionKey}}, {"key":"prop_name", "value":{"str": propName}}, {"key":"value", "value":{"str": value}}]);
-            }
-            async getConfigValueTask(sectionKey, propName) {
-                await this.runPluginTask("userscript_functions", "Get Config Value", [{"key":"section_key", "value":{"str": sectionKey}}, {"key":"prop_name", "value":{"str": propName}}]);
-
-                // poll logs until plugin task output appears
-                const prefix = `[Plugin / Userscript Functions] get_config_value: [${sectionKey}][${propName}] =`;
-                return this.pollLogsForMessage(prefix);
+            registerHiddenPluginTask(plugin, task) {
+                this.hiddenPluginTasks.push([plugin, task]);
             }
             async pollLogsForMessage(prefix) {
                 const reqTime = Date.now();
@@ -753,51 +822,13 @@
                     this.dispatchEvent(new CustomEvent('tagger', { 'detail': el }));
 
                     const searchItemContainer = document.querySelector('.tagger-container').lastChild;
-
-                    const observer = new MutationObserver(mutations => {
-                        mutations.forEach(mutation => {
-                            mutation.addedNodes.forEach(node => {
-                                if (node?.classList?.contains('entity-name') && node.innerText.startsWith('Performer:')) {
-                                    this.dispatchEvent(new CustomEvent('tagger:mutation:add:remoteperformer', { 'detail': { node, mutation } }));
-                                }
-                                else if (node?.classList?.contains('entity-name') && node.innerText.startsWith('Studio:')) {
-                                    this.dispatchEvent(new CustomEvent('tagger:mutation:add:remotestudio', { 'detail': { node, mutation } }));
-                                }
-                                else if (node.tagName === 'SPAN' && node.innerText.startsWith('Matched:')) {
-                                    this.dispatchEvent(new CustomEvent('tagger:mutation:add:local', { 'detail': { node, mutation } }));
-                                }
-                                else if (node.tagName === 'UL') {
-                                    this.dispatchEvent(new CustomEvent('tagger:mutation:add:container', { 'detail': { node, mutation } }));
-                                }
-                                else if (node?.classList?.contains('col-lg-6')) {
-                                    this.dispatchEvent(new CustomEvent('tagger:mutation:add:subcontainer', { 'detail': { node, mutation } }));
-                                }
-                                else if (node.tagName === 'H5') { // scene date
-                                    this.dispatchEvent(new CustomEvent('tagger:mutation:add:date', { 'detail': { node, mutation } }));
-                                }
-                                else if (node.tagName === 'DIV' && node?.classList?.contains('d-flex') && node?.classList?.contains('flex-column')) { // scene stashid, url, details
-                                    this.dispatchEvent(new CustomEvent('tagger:mutation:add:detailscontainer', { 'detail': { node, mutation } }));
-                                }
-                                else if (node.tagName === 'DIV' && node?.classList?.contains('react-select__multi-value')) {
-                                    this.dispatchEvent(new CustomEvent('tagger:mutation:add:remotetag', { 'detail': { node, mutation } }));
-                                }
-                                else {
-                                    this.dispatchEvent(new CustomEvent('tagger:mutation:add:other', { 'detail': { node, mutation } }));
-                                }
-                            });
-                        });
-                        this.dispatchEvent(new CustomEvent('tagger:mutations:searchitems', { 'detail': mutations }));
-                    });
-                    observer.observe(searchItemContainer, {
+                    this.sceneTaggerObserver.observe(searchItemContainer, {
                         childList: true,
                         subtree: true
                     });
 
                     const taggerContainerHeader = document.querySelector('.tagger-container-header');
-                    const taggerContainerHeaderObserver = new MutationObserver(mutations => {
-                        this.dispatchEvent(new CustomEvent('tagger:mutations:header', { 'detail': mutations }));
-                    });
-                    taggerContainerHeaderObserver.observe(taggerContainerHeader, {
+                    this.taggerContainerHeaderObserver.observe(taggerContainerHeader, {
                         childList: true,
                         subtree: true
                     });
@@ -841,6 +872,9 @@
             processScene(data) {
                 if (data.data.findScene) {
                     this.scenes[data.data.findScene.id] = data.data.findScene;
+                    for (const performer of data.data.findScene.performers) {
+                        this.performers[performer.id] = performer;
+                    }
                 }
             }
             processScenes(data) {
@@ -1027,6 +1061,7 @@
             waitForElementId,
             waitForElementClass,
             waitForElementByXpath,
+            waitForElementsByXpath,
             getElementByXpath,
             getElementsByXpath,
             getClosestAncestor,
@@ -1041,7 +1076,7 @@
         };
     };
 
-    if (!unsafeWindow.stash) {
-        unsafeWindow.stash = stash();
+    if (!window.stash7dJx1qP) {
+        window.stash7dJx1qP = stash();
     }
 })();
