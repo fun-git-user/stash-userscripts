@@ -1,6 +1,6 @@
 // Stash Userscript Library
 // Exports utility functions and a Stash class that emits events whenever a GQL response is received and whenenever a page navigation change is detected
-// version 0.43.0 - from stash plugin location - https://github.com/7dJx1qP/stash-plugins/tree/main/plugins/stashUserscriptLibrary7dJx1qP
+// version 0.43.1 - from stash plugin location - https://github.com/7dJx1qP/stash-plugins/tree/main/plugins/stashUserscriptLibrary7dJx1qP
 
 (function () {
     'use strict';
